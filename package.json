@@ -1,0 +1,19 @@
+{
+  "name": "luma-guest-export",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Download guest-list CSVs for every event of every Luma calendar you manage, in one run",
+  "keywords": ["luma", "lu.ma", "events", "guests", "csv", "export", "playwright"],
+  "author": "Alexander Khodos",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "luma-guest-export": "./luma-guest-export.mjs" },
+  "files": ["luma-guest-export.mjs"],
+  "scripts": {
+    "export": "node luma-guest-export.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}

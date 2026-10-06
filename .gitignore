@@ -1,0 +1,12 @@
+node_modules/
+# Артефакты разведки Playwright MCP: снимки страниц и загрузки с ПДн гостей
+.playwright-mcp/
+# Выгрузки и сессия — на случай, если их положили сюда вопреки README
+*.csv
+*.part
+*.tmp
+.luma-export.json
+session.json
+
+# Папка выгрузки по умолчанию (ПДн гостей)
+out/
