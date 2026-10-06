@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Выгрузка гостей всех событий всех календарей Luma в CSV — без Luma Plus.
+// Export guest lists of every event in every Luma calendar you manage to CSV.
 //
-// Ходит во внутренний API Luma (тот, которым пользуется сам дашборд) с сессией живого браузера:
-// вход и подтверждение доступа (sudo) делает человек в открывшемся окне. Файл — родной CSV Luma,
-// байт в байт, под именем, которое Luma предлагает (с заменой недопустимых в Windows символов на
-// «_», как это делает браузер). Подробности — README.md.
+// Calls Luma's internal API (the one the dashboard itself uses) with a live browser session:
+// a person signs in and confirms access (sudo) in the opened window. Each file is Luma's own CSV,
+// byte for byte, under the name Luma suggests (characters invalid on Windows replaced with "_",
+// as the browser does). See README.md for details.
 
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -32,25 +32,25 @@ const { values: opts } = parseArgs({
 if (opts.help || !opts.out) {
   console.log(`Usage: node luma-guest-export.mjs --out <dir> [--session <file>] [--force] [--delay <ms>] [--calendar <name|cal-id>]... [--browser chrome|msedge|chromium]
 
-  --out       куда класть CSV (вне git: в файлах ПДн гостей)
-  --session   файл сессии Luma (по умолчанию ${path.join(os.homedir(), '.luma-guest-export', 'session.json')})
-  --force     выгрузить всё заново, не глядя на уже скачанное
-  --delay     пауза между событиями, мс (по умолчанию 1500)
-  --calendar  только эти календари (имя или cal-id); можно повторять
-  --browser   chrome | msedge | chromium (по умолчанию chrome — установленный Google Chrome)`);
+  --out       where to save the CSVs (keep outside git: they contain guest personal data)
+  --session   Luma session file (default ${path.join(os.homedir(), '.luma-guest-export', 'session.json')})
+  --force     re-download everything, ignoring previous downloads
+  --delay     pause between events, ms (default 1500)
+  --calendar  only these calendars (name or cal-id); repeatable
+  --browser   chrome | msedge | chromium (default chrome, the installed Google Chrome)`);
   process.exit(opts.help ? 0 : 2);
 }
 
 const outDir = path.resolve(opts.out);
 const delay = Number(opts.delay);
 if (!Number.isFinite(delay) || delay < 0) {
-  console.error(`--delay: ожидается число миллисекунд, получено «${opts.delay}»`);
+  console.error(`--delay: expected a number of milliseconds, got "${opts.delay}"`);
   process.exit(2);
 }
 
 class Stop extends Error {}
 
-/** Как браузер чистит имя загрузки на Windows: недопустимые символы → «_». */
+/** Sanitize a download name the way the browser does on Windows: invalid characters -> "_". */
 function safeName(name) {
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '').trim() || '_';
 }
@@ -71,7 +71,7 @@ function saveManifest(m) {
   fs.renameSync(p + '.tmp', p);
 }
 
-/** Событие скачано после своего конца — список гостей уже не меняется, перекачивать незачем. */
+/** Downloaded after the event ended: the guest list won't change, so no need to re-download. */
 function isFresh(rec, event) {
   if (!rec || !fs.existsSync(path.join(outDir, rec.file))) return false;
   const end = event.end_at || event.start_at;
@@ -80,7 +80,7 @@ function isFresh(rec, event) {
 
 async function apiGet(ctx, url) {
   const r = await ctx.request.get(url);
-  if (r.status() === 429) throw new Stop(`Luma ответила 429 (слишком много запросов) на ${url}. Подождите и запустите снова.`);
+  if (r.status() === 429) throw new Stop(`Luma returned 429 (too many requests) for ${url}. Wait and run again.`);
   let body;
   try { body = await r.json(); } catch { body = null; }
   return { status: r.status(), body };
@@ -89,10 +89,10 @@ async function apiGet(ctx, url) {
 async function ensureLogin(ctx, page) {
   await page.goto(`${SITE}/home/calendars`);
   if (!page.url().includes('/signin')) return;
-  console.log('\n>>> Войдите в Luma в открывшемся окне браузера. Жду до 15 минут…');
+  console.log('\n>>> Sign in to Luma in the browser window. Waiting up to 15 minutes…');
   await page.waitForURL(u => !u.toString().includes('/signin'), { timeout: HUMAN_TIMEOUT });
   await saveSession(ctx);
-  console.log('Вход выполнен, сессия сохранена.');
+  console.log('Signed in, session saved.');
 }
 
 async function saveSession(ctx) {
@@ -100,9 +100,9 @@ async function saveSession(ctx) {
   await ctx.storageState({ path: opts.session });
 }
 
-/** Luma требует подтвердить доступ (код на почту) перед выгрузкой — это делает человек. */
+/** Luma requires access confirmation (email code) before exporting; a person does this. */
 async function confirmSudo(page, eventId) {
-  console.log('\n>>> Luma просит подтвердить доступ: в окне браузера нажмите «Send Email Code» и введите код из письма. Жду до 15 минут…');
+  console.log('\n>>> Luma asks to confirm access: in the browser window click "Send Email Code" and enter the code from your email. Waiting up to 15 minutes…');
   await page.goto(`${SITE}/event/manage/${eventId}/guests`);
   const ok = page.waitForResponse(
     r => r.url().includes('/event/admin/download-guests-csv') && r.status() === 200,
@@ -110,7 +110,7 @@ async function confirmSudo(page, eventId) {
   );
   await page.getByRole('button', { name: 'Download as CSV' }).click();
   await ok;
-  console.log('Доступ подтверждён.');
+  console.log('Access confirmed.');
 }
 
 async function listEvents(ctx, calId) {
@@ -129,7 +129,7 @@ async function listEvents(ctx, calId) {
   return [...events.values()];
 }
 
-/** Родной CSV Luma: API отдаёт ссылку на S3, файл там может появиться не сразу. */
+/** Luma's own CSV: the API returns an S3 link, and the file may not be there right away. */
 async function fetchCsv(ctx, page, eventId) {
   const url = `${API}/event/admin/download-guests-csv?event_api_id=${eventId}&sort_column=registered_or_created_at&sort_direction=desc`;
   let { status, body } = await apiGet(ctx, url);
@@ -145,13 +145,13 @@ async function fetchCsv(ctx, page, eventId) {
     if (r.status() !== 403 && r.status() !== 404) throw new Error(`S3: HTTP ${r.status()}`);
     await sleep(1000);
   }
-  throw new Error('файл не появился на S3 за 60 с');
+  throw new Error('file did not appear on S3 within 60 s');
 }
 
 async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   const manifest = loadManifest();
-  const seen = new Set(); // событие может быть в нескольких календарях — выгружаем один раз
+  const seen = new Set(); // an event can appear in several calendars; export it once
   const stats = { calendars: 0, events: 0, downloaded: 0, skipped: 0, foreign: 0, errors: [] };
 
   const browser = await chromium.launch({
@@ -174,14 +174,14 @@ async function main() {
       calendars = calendars.filter(c => opts.calendar.includes(c.name) || opts.calendar.includes(c.api_id));
       const known = new Set(calendars.flatMap(c => [c.name, c.api_id]));
       const missing = opts.calendar.filter(c => !known.has(c));
-      if (missing.length) throw new Stop(`Нет таких календарей: ${missing.join(', ')}. Доступны: ${body.infos.map(i => i.calendar.name).join(', ')}`);
+      if (missing.length) throw new Stop(`No such calendars: ${missing.join(', ')}. Available: ${body.infos.map(i => i.calendar.name).join(', ')}`);
     }
     stats.calendars = calendars.length;
 
     for (const cal of calendars) {
       const events = await listEvents(ctx, cal.api_id);
       const foreign = events.filter(e => !e.is_manager).length;
-      console.log(`\n${cal.name}: событий ${events.length}` + (foreign ? `, из них чужих ${foreign}` : ''));
+      console.log(`\n${cal.name}: ${events.length} events` + (foreign ? `, ${foreign} by other organizers` : ''));
       const calDir = safeName(cal.name);
       fs.mkdirSync(path.join(outDir, calDir), { recursive: true });
 
@@ -189,14 +189,14 @@ async function main() {
         if (seen.has(ev.api_id)) continue;
         seen.add(ev.api_id);
         stats.events++;
-        // Событие другого организатора, показанное в календаре: гостей Luma не отдаёт (403).
+        // Another organizer's event shown in the calendar: Luma refuses its guest list (403).
         if (!ev.is_manager) { stats.foreign++; continue; }
         const rec = manifest.events[ev.api_id];
         if (!opts.force && isFresh(rec, ev)) { stats.skipped++; continue; }
         try {
           const { filename, data } = await fetchCsv(ctx, page, ev.api_id);
           if (!data.subarray(0, 64).toString('utf8').replace(/^﻿/, '').startsWith('guest_id,')) {
-            throw new Error('ответ не похож на CSV гостей Luma');
+            throw new Error('response does not look like a Luma guest CSV');
           }
           const file = `${calDir}/${safeName(filename)}`;
           fs.writeFileSync(path.join(outDir, file) + '.part', data);
@@ -222,10 +222,10 @@ async function main() {
     await browser.close();
   }
 
-  console.log(`\nКалендарей: ${stats.calendars}, событий: ${stats.events}, скачано: ${stats.downloaded}, пропущено (уже есть): ${stats.skipped}, чужих (нет доступа): ${stats.foreign}, ошибок: ${stats.errors.length}`);
+  console.log(`\nCalendars: ${stats.calendars}, events: ${stats.events}, downloaded: ${stats.downloaded}, skipped (up to date): ${stats.skipped}, other organizers (no access): ${stats.foreign}, errors: ${stats.errors.length}`);
   for (const e of stats.errors) console.log(`  ✗ ${e.name} — ${e.url}\n    ${e.error}`);
-  if (stats.stopped) console.log(`\nОСТАНОВЛЕНО: ${stats.stopped}`);
-  console.log(`Файлы: ${outDir}`);
+  if (stats.stopped) console.log(`\nSTOPPED: ${stats.stopped}`);
+  console.log(`Files: ${outDir}`);
   process.exitCode = stats.stopped || stats.errors.length ? 1 : 0;
 }
 

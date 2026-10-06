@@ -1,12 +1,12 @@
 node_modules/
-# Артефакты разведки Playwright MCP: снимки страниц и загрузки с ПДн гостей
+# Playwright MCP artifacts: page snapshots and downloads containing guest personal data
 .playwright-mcp/
-# Выгрузки и сессия — на случай, если их положили сюда вопреки README
+# Exports and session, in case they end up here despite the README
 *.csv
 *.part
 *.tmp
 .luma-export.json
 session.json
 
-# Папка выгрузки по умолчанию (ПДн гостей)
+# Conventional export folder (guest personal data)
 out/
