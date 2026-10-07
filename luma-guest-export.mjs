@@ -108,7 +108,10 @@ async function confirmSudo(page, eventId) {
     r => r.url().includes('/event/admin/download-guests-csv') && r.status() === 200,
     { timeout: HUMAN_TIMEOUT },
   );
-  await page.getByRole('button', { name: 'Download as CSV' }).click();
+  // The button may be labelled differently (UI language, layout); then the person clicks it.
+  await page.getByRole('button', { name: 'Download as CSV' }).click({ timeout: 10_000 }).catch(() => {
+    console.log('>>> Could not find the "Download as CSV" button. Click the guest list download button on this page yourself, then "Send Email Code".');
+  });
   await ok;
   console.log('Access confirmed.');
 }
